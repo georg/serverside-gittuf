@@ -1,0 +1,19 @@
+# Compiled binary
+/serverside-gittuf
+/cmd/serverside-gittuf/serverside-gittuf
+
+# Runtime data: bare repos + the RSL signing key (never commit the private key)
+/data/
+
+# Go test / coverage / profiling output
+*.test
+*.out
+*.prof
+coverage.*
+
+# Go workspace files (local-only)
+go.work
+go.work.sum
+
+# macOS
+.DS_Store

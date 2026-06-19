@@ -1,0 +1,58 @@
+// Command serverside-gittuf runs a git smart-HTTP server that records a gittuf
+// RSL entry for every pushed ref change. Clients push normally and fetch
+// refs/gittuf/reference-state-log to verify what was written — git is the only
+// interface.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"strings"
+
+	"golang.org/x/crypto/ssh"
+
+	"github.com/georg/serverside-gittuf/gitserver"
+	"github.com/georg/serverside-gittuf/signer"
+)
+
+func main() {
+	addr := flag.String("addr", ":8080", "listen address")
+	dataDir := flag.String("data-dir", "./data", "directory holding bare repositories")
+	keyPath := flag.String("signing-key", "", "path to the RSL signing key (default <data-dir>/cluster_ed25519)")
+	flag.Parse()
+
+	if *keyPath == "" {
+		*keyPath = *dataDir + "/cluster_ed25519"
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
+
+	key, pub, err := signer.LoadOrGenerate(*keyPath)
+	if err != nil {
+		logger.Error("load signing key", "err", err)
+		os.Exit(1)
+	}
+	sgn, err := signer.NewSSHSigner(key)
+	if err != nil {
+		logger.Error("build signer", "err", err)
+		os.Exit(1)
+	}
+
+	authorized := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub)))
+	logger.Info("RSL signing key loaded",
+		"fingerprint", ssh.FingerprintSHA256(pub),
+		"public_key", authorized,
+		"note", "add this key to a repo's gittuf root of trust to verify its RSL")
+	fmt.Fprintf(os.Stderr, "\nRSL public key (authorize this in gittuf policy to verify):\n  %s\n\n", authorized)
+
+	srv := gitserver.New(*dataDir, sgn)
+	logger.Info("serving git smart-HTTP", "addr", *addr, "data_dir", *dataDir)
+	if err := http.ListenAndServe(*addr, srv.Handler()); err != nil {
+		logger.Error("server stopped", "err", err)
+		os.Exit(1)
+	}
+}
