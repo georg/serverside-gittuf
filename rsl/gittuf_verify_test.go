@@ -22,6 +22,7 @@ import (
 
 	"github.com/georg/serverside-gittuf/rsl"
 	"github.com/georg/serverside-gittuf/signer"
+	"github.com/georg/serverside-gittuf/txstore"
 )
 
 // TestGittufCrossVerify_SHA1 writes an RSL with our Storer-model writer to an
@@ -38,10 +39,12 @@ func TestGittufCrossVerify_SHA1(t *testing.T) {
 		t.Skip("git binary not available; gittuf cross-verify needs the git CLI")
 	}
 
-	// On-disk, non-bare sha1 repo: gittuf opens via DetectDotGit.
+	// On-disk, non-bare sha1 repo: gittuf opens via DetectDotGit. The filesystem
+	// storer is adapted to the transactional Storer the append consumes.
 	dir := t.TempDir()
 	repo, err := git.PlainInit(dir, false)
 	require.NoError(t, err)
+	st := txstore.New(repo.Storer)
 
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
@@ -57,13 +60,13 @@ func TestGittufCrossVerify_SHA1(t *testing.T) {
 	mainB := plumbing.NewHash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
 	// Three pushes -> a 3-entry chain (1,2,3): create, update, delete.
-	_, err = rsl.AppendReferenceEntries(ctx, repo.Storer, sgn, now,
+	_, err = rsl.AppendReferenceEntries(ctx, st, sgn, now,
 		[]rsl.RefChange{{RefName: "refs/heads/main", Target: mainA}})
 	require.NoError(t, err)
-	_, err = rsl.AppendReferenceEntries(ctx, repo.Storer, sgn, now,
+	_, err = rsl.AppendReferenceEntries(ctx, st, sgn, now,
 		[]rsl.RefChange{{RefName: "refs/heads/main", Target: mainB}})
 	require.NoError(t, err)
-	_, err = rsl.AppendReferenceEntries(ctx, repo.Storer, sgn, now,
+	_, err = rsl.AppendReferenceEntries(ctx, st, sgn, now,
 		[]rsl.RefChange{{RefName: "refs/heads/feature", Delete: true}})
 	require.NoError(t, err)
 

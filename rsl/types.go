@@ -5,19 +5,22 @@ import (
 	"errors"
 
 	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/storer"
 )
 
-// Storer is the subset of go-git v6's storage.Storer the RSL needs. A
-// *git.Repository's Storer satisfies it; so does any host storer
-// (go-git's filesystem/memory storage, entiredb's content-addressed storer, …).
-//
-// This is the seam from the gittuf-storer-interface-spec: object read/write +
-// ref read/CAS, nothing about the RSL format or crypto.
+// Storer is the subset of go-git v6's storage.Storer the RSL needs, in the
+// Transactioner shape from the spec (§3 + batching): object writes go through a
+// storer.Transaction — Begin → tx.SetEncodedObject × N → tx.Commit is one durable
+// object flush — while durable reads, ref read, and the ref CAS stay on the
+// storer. Any storer that implements storer.Transactioner satisfies it (go-git's
+// in-memory storage does); a non-transactional storer such as the filesystem
+// backend is adapted by txstore.New. Nothing here knows the RSL format or crypto.
 type Storer interface {
-	// objects
+	// object construction + durable reads
 	NewEncodedObject() plumbing.EncodedObject
-	SetEncodedObject(plumbing.EncodedObject) (plumbing.Hash, error)
 	EncodedObject(plumbing.ObjectType, plumbing.Hash) (plumbing.EncodedObject, error)
+	// object writes are staged in a transaction and flushed on Commit
+	Begin() storer.Transaction
 	// refs
 	Reference(plumbing.ReferenceName) (*plumbing.Reference, error)
 	CheckAndSetReference(newRef, old *plumbing.Reference) error

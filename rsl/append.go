@@ -18,11 +18,12 @@ import (
 // own coexistence policy (drop entries the client already logged) BEFORE calling
 // (see gitserver.dropClientLogged).
 //
-// Shape: the spec's advance-once-per-push. It reads the tip once, chains every
-// new commit on the in-memory hash of the previous one (no per-entry tip
-// re-read), and advances the ref with a SINGLE CheckAndSetReference. This is
-// ideal for a write-through storer (each SetEncodedObject is durable) and, under
-// the host's per-repo lock, the lone CAS cannot conflict.
+// Shape: the spec's advance-once-per-push over a storer.Transaction. It reads the
+// tip once (durably, before the transaction), stages every new commit in the
+// transaction chaining on the in-memory hash of the previous one (no per-entry
+// tip re-read), flushes them in a SINGLE tx.Commit (the object-flush boundary),
+// then advances the ref with a SINGLE CheckAndSetReference outside the
+// transaction. Under the host's per-repo lock, the lone CAS cannot conflict.
 //
 // Fail-closed tip read (D6): a genuinely absent ref starts the chain at number 1
 // with no parent; any other read error, or a tip whose number can't be parsed,
@@ -32,13 +33,22 @@ func AppendReferenceEntries(ctx context.Context, st Storer, signer Signer, now f
 		return nil, nil
 	}
 
-	emptyTree, err := ensureEmptyTree(st)
-	if err != nil {
-		return nil, fmt.Errorf("rsl: empty tree: %w", err)
-	}
 	tip, number, err := readTip(st)
 	if err != nil {
 		return nil, err
+	}
+
+	tx := st.Begin()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	emptyTree, err := ensureEmptyTree(st, tx)
+	if err != nil {
+		return nil, fmt.Errorf("rsl: empty tree: %w", err)
 	}
 
 	running := tip
@@ -47,7 +57,7 @@ func AppendReferenceEntries(ctx context.Context, st Storer, signer Signer, now f
 		number++
 		// The empty-tree hash carries the repo's hash width, which sizes a
 		// deletion's zero-width targetID.
-		id, err := buildSignedCommit(ctx, st, signer, emptyTree, running,
+		id, err := buildSignedCommit(ctx, st, tx, signer, emptyTree, running,
 			referenceEntryMessage(ch.RefName, changeTargetID(ch, emptyTree), number), now())
 		if err != nil {
 			return nil, err
@@ -55,6 +65,13 @@ func AppendReferenceEntries(ctx context.Context, st Storer, signer Signer, now f
 		running = id
 		out = append(out, &ReferenceEntry{ID: id, RefName: ch.RefName, Target: ch.Target, Number: number})
 	}
+
+	// One durable flush of all staged objects, then advance the ref. The ref tip
+	// and its CAS sit outside the object transaction (spec: object-only).
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("rsl: commit objects: %w", err)
+	}
+	committed = true
 
 	newRef := plumbing.NewHashReference(plumbing.ReferenceName(Ref), running)
 	var old *plumbing.Reference

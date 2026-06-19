@@ -73,7 +73,12 @@ remainder on top.
 ## Layout
 
 - `rsl/` — RSL format, append (advance-once-per-push), read, and signature verify over the
-  go-git v6 `Storer` seam. In-process signing via `EncodeWithoutSignature` + a `Signer`.
+  go-git v6 `Storer` seam (the spec's Transactioner shape: object writes go through
+  `Begin → tx.SetEncodedObject × N → tx.Commit`, one durable flush, with the ref CAS outside
+  the transaction). In-process signing via `EncodeWithoutSignature` + a `Signer`.
+- `txstore/` — adapts a `storage.Storer` that isn't a `storer.Transactioner` (the filesystem
+  backend) into one that is, via an in-memory staging transaction that flushes on `Commit`.
+  go-git's in-memory storage is already transactional and passes through unwrapped.
 - `signer/` — SSH ed25519 signer (gittuf's SSHSIG scheme) + load-or-generate.
 - `gitserver/` — smart-HTTP handlers. go-git does advertisement, packfile ingest, and
   upload-pack; we own the receive-pack ref-commit step so the RSL append happens before the

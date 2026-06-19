@@ -25,6 +25,7 @@ import (
 	"github.com/georg/serverside-gittuf/gitserver"
 	"github.com/georg/serverside-gittuf/rsl"
 	"github.com/georg/serverside-gittuf/signer"
+	"github.com/georg/serverside-gittuf/txstore"
 )
 
 func testSigner(t *testing.T) (rsl.Signer, ssh.PublicKey) {
@@ -57,20 +58,23 @@ func emptyTreeCommit(t *testing.T, st storage.Storer, msg string, parent plumbin
 	return h
 }
 
-// serverRepo opens a fresh storer over the server's on-disk repo for assertions.
-func serverRepo(t *testing.T, dataDir, repo string) storage.Storer {
+// serverRepo opens a fresh storer over the server's on-disk repo for assertions,
+// adapted to the transactional Storer the rsl read API consumes.
+func serverRepo(t *testing.T, dataDir, repo string) txstore.Storer {
 	t.Helper()
-	return filesystem.NewStorage(osfs.New(filepath.Join(dataDir, repo)), cache.NewObjectLRUDefault())
+	return txstore.New(filesystem.NewStorage(osfs.New(filepath.Join(dataDir, repo)), cache.NewObjectLRUDefault()))
 }
 
-func newClientRepo(t *testing.T, url string) (*git.Repository, storage.Storer) {
+func newClientRepo(t *testing.T, url string) (*git.Repository, txstore.Storer) {
 	t.Helper()
 	st := memory.NewStorage()
 	repo, err := git.Init(st)
 	require.NoError(t, err)
 	_, err = repo.CreateRemote(&config.RemoteConfig{Name: "origin", URLs: []string{url}})
 	require.NoError(t, err)
-	return repo, st
+	// memory.Storage already implements storer.Transactioner, so txstore.New
+	// returns it unwrapped; this just exposes Begin() through the static type.
+	return repo, txstore.New(st)
 }
 
 func TestPushRecordsRSLAndIsFetchable(t *testing.T) {

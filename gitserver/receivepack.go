@@ -17,6 +17,7 @@ import (
 	"github.com/go-git/go-git/v6/storage"
 
 	"github.com/georg/serverside-gittuf/rsl"
+	"github.com/georg/serverside-gittuf/txstore"
 )
 
 // Per-ref rejection reasons surfaced to the client in report-status.
@@ -100,7 +101,7 @@ func (s *Server) handleReceivePack(w http.ResponseWriter, r *http.Request, repo 
 // log. It returns per-ref status for report-status. Order is refs-first then RSL
 // (Q3): an RSL-append failure marks the recorded refs failed (the ref is already
 // applied; a client retry re-applies the no-op and writes the entry).
-func (s *Server) applyAndRecord(ctx context.Context, st storage.Storer, commands []*packp.Command) map[plumbing.ReferenceName]error {
+func (s *Server) applyAndRecord(ctx context.Context, st txstore.Storer, commands []*packp.Command) map[plumbing.ReferenceName]error {
 	cmdStatus := make(map[plumbing.ReferenceName]error, len(commands))
 	var changes []rsl.RefChange
 	var clientPreTip *plumbing.Hash
@@ -189,7 +190,7 @@ func (s *Server) failChanges(cmdStatus map[plumbing.ReferenceName]error, changes
 // current RSL tip (CAS precheck), it must not be a deletion, and the proposed
 // new tip — whose objects are already ingested — must parse as a numbered RSL
 // entry. On any failure the caller rejects just this command and records normally.
-func validateClientRSL(st storage.Storer, cmd *packp.Command) error {
+func validateClientRSL(st rsl.Storer, cmd *packp.Command) error {
 	current := plumbing.ZeroHash
 	if ref, err := st.Reference(plumbing.ReferenceName(rsl.Ref)); err == nil {
 		current = ref.Hash()

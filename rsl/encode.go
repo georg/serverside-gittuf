@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
+	"github.com/go-git/go-git/v6/plumbing/storer"
 )
 
 // The RSL committer identity. Cosmetic only: gittuf verifies the SSH signature
@@ -19,12 +20,12 @@ const (
 
 // buildSignedCommit builds an empty-tree commit (parent omitted when zero),
 // SSH-signs its signature-free payload into the gpgsig header exactly as gittuf
-// expects, stores it via the Storer, and returns the new commit hash.
+// expects, stages it in the transaction, and returns the new commit hash.
 //
 // It sets commit.Signature (-> gpgsig) — in go-git v6 the field is Signature,
 // not PGPSignature — and never SignatureSHA256 (-> gpgsig-sha256), which gittuf
 // verification ignores; true even for sha256 repositories.
-func buildSignedCommit(ctx context.Context, st Storer, signer Signer, emptyTree, parent plumbing.Hash, message string, when time.Time) (plumbing.Hash, error) {
+func buildSignedCommit(ctx context.Context, st Storer, tx storer.Transaction, signer Signer, emptyTree, parent plumbing.Hash, message string, when time.Time) (plumbing.Hash, error) {
 	ident := object.Signature{Name: commitAuthorName, Email: commitAuthorEmail, When: when}
 	c := &object.Commit{
 		Author:    ident,
@@ -56,23 +57,23 @@ func buildSignedCommit(ctx context.Context, st Storer, signer Signer, emptyTree,
 	if err := c.Encode(obj); err != nil {
 		return plumbing.ZeroHash, fmt.Errorf("rsl: encode commit: %w", err)
 	}
-	h, err := st.SetEncodedObject(obj)
+	h, err := tx.SetEncodedObject(obj)
 	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("rsl: store commit: %w", err)
+		return plumbing.ZeroHash, fmt.Errorf("rsl: stage commit: %w", err)
 	}
 	return h, nil
 }
 
-// ensureEmptyTree stores the repo's empty tree (idempotent, content-addressed)
+// ensureEmptyTree stages the repo's empty tree (idempotent, content-addressed)
 // and returns its hash at the storer's configured object format.
-func ensureEmptyTree(st Storer) (plumbing.Hash, error) {
+func ensureEmptyTree(st Storer, tx storer.Transaction) (plumbing.Hash, error) {
 	obj := st.NewEncodedObject()
 	if err := (&object.Tree{}).Encode(obj); err != nil {
 		return plumbing.ZeroHash, fmt.Errorf("rsl: encode empty tree: %w", err)
 	}
-	h, err := st.SetEncodedObject(obj)
+	h, err := tx.SetEncodedObject(obj)
 	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("rsl: store empty tree: %w", err)
+		return plumbing.ZeroHash, fmt.Errorf("rsl: stage empty tree: %w", err)
 	}
 	return h, nil
 }

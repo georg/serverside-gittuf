@@ -24,10 +24,10 @@ import (
 	"github.com/go-git/go-billy/v6/osfs"
 	git "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/cache"
-	"github.com/go-git/go-git/v6/storage"
 	"github.com/go-git/go-git/v6/storage/filesystem"
 
 	"github.com/georg/serverside-gittuf/rsl"
+	"github.com/georg/serverside-gittuf/txstore"
 )
 
 // Server is the smart-HTTP git server with server-side RSL recording.
@@ -73,9 +73,10 @@ func cleanRepo(repo string) (string, error) {
 }
 
 // openStorer opens (or, when create is set, auto-inits as a bare sha1 repo) the
-// go-git storer for repo. A sha256 repo is supported by pre-creating the bare
-// repo on disk; the server opens whatever format it finds.
-func (s *Server) openStorer(repo string, create bool) (storage.Storer, error) {
+// go-git storer for repo, adapted to support object transactions (the filesystem
+// backend is not a storer.Transactioner on its own). A sha256 repo is supported
+// by pre-creating the bare repo on disk; the server opens whatever format it finds.
+func (s *Server) openStorer(repo string, create bool) (txstore.Storer, error) {
 	clean, err := cleanRepo(repo)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func (s *Server) openStorer(repo string, create bool) (storage.Storer, error) {
 		}
 		s.logger.Info("auto-initialized repository", "repo", clean, "dir", dir)
 	}
-	return st, nil
+	return txstore.New(st), nil
 }
 
 // keyedMutex hands out a *sync.Mutex per repo, created on first use and never
