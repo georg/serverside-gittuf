@@ -3,6 +3,7 @@ package rsl
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/storer"
@@ -29,8 +30,11 @@ type Storer interface {
 // Signer signs the canonical, signature-free bytes of an RSL commit and returns
 // the armored signature (SSHSIG, namespace "git", SHA-512). Key custody is the
 // caller's. This is the one thing a Storer cannot carry, injected separately.
+//
+// The interface is compatible with ssh.Signer (go-git/x/plugin/objectsigner),
+// so an ssh.Signer can be used wherever a Signer is expected.
 type Signer interface {
-	Sign(ctx context.Context, payload []byte) ([]byte, error)
+	Sign(ctx context.Context, message io.Reader) ([]byte, error)
 	KeyID() string
 }
 

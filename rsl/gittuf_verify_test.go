@@ -18,10 +18,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gittuf/gittuf/pkg/gitinterface"
+	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
 	"github.com/secure-systems-lab/go-securesystemslib/signerverifier"
 
 	"github.com/georg/serverside-gittuf/rsl"
-	"github.com/georg/serverside-gittuf/signer"
 	"github.com/georg/serverside-gittuf/txstore"
 )
 
@@ -48,9 +48,9 @@ func TestGittufCrossVerify_SHA1(t *testing.T) {
 
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-	sgn, err := signer.NewSSHSigner(priv)
-	require.NoError(t, err)
 	raw, err := ssh.NewSignerFromKey(priv)
+	require.NoError(t, err)
+	sgn, err := objectsigner.FromKey(raw)
 	require.NoError(t, err)
 
 	ctx := context.Background()

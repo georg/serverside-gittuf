@@ -1,6 +1,7 @@
 package rsl
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -47,7 +48,7 @@ func buildSignedCommit(ctx context.Context, st Storer, tx storer.Transaction, si
 	if err != nil {
 		return plumbing.ZeroHash, err
 	}
-	sig, err := signer.Sign(ctx, payload)
+	sig, err := signer.Sign(ctx, bytes.NewReader(payload))
 	if err != nil {
 		return plumbing.ZeroHash, fmt.Errorf("rsl: sign commit: %w", err)
 	}
