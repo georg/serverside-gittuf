@@ -22,9 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
+
 	"github.com/georg/serverside-gittuf/gitserver"
 	"github.com/georg/serverside-gittuf/rsl"
-	"github.com/georg/serverside-gittuf/signer"
 	"github.com/georg/serverside-gittuf/txstore"
 )
 
@@ -32,9 +33,9 @@ func testSigner(t *testing.T) (rsl.Signer, ssh.PublicKey) {
 	t.Helper()
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-	sgn, err := signer.NewSSHSigner(priv)
-	require.NoError(t, err)
 	s, err := ssh.NewSignerFromKey(priv)
+	require.NoError(t, err)
+	sgn, err := objectsigner.FromKey(s)
 	require.NoError(t, err)
 	return sgn, s.PublicKey()
 }

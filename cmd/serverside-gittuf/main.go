@@ -12,10 +12,11 @@ import (
 	"os"
 	"strings"
 
+	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/georg/serverside-gittuf/gitserver"
-	"github.com/georg/serverside-gittuf/signer"
+	"github.com/georg/serverside-gittuf/util"
 )
 
 func main() {
@@ -31,12 +32,17 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 
-	key, pub, err := signer.LoadOrGenerate(*keyPath)
+	key, pub, err := util.LoadOrGenerate(*keyPath)
 	if err != nil {
 		logger.Error("load signing key", "err", err)
 		os.Exit(1)
 	}
-	sgn, err := signer.NewSSHSigner(key)
+	sshSigner, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		logger.Error("build ssh signer from key", "err", err)
+		os.Exit(1)
+	}
+	sgn, err := objectsigner.FromKey(sshSigner)
 	if err != nil {
 		logger.Error("build signer", "err", err)
 		os.Exit(1)
