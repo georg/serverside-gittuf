@@ -409,8 +409,8 @@ github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgr
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
 github.com/pborman/getopt v0.0.0-20170112200414-7148bc3a4c30/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=
 github.com/pborman/getopt v0.0.0-20180811024354-2b5b3bfb099b/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=
-github.com/pjbgf/gittuf v0.0.0-20260624115542-871b08df83cb h1:0ZcwO7bAtUKgjJxg/jeS3i68ITm8hlc7OpiO8GVVz90=
-github.com/pjbgf/gittuf v0.0.0-20260624115542-871b08df83cb/go.mod h1:voRWcJq7TV/k0W9ZbQWLEVTLsX8w+c56Nmsfh3k+xhM=
+github.com/pjbgf/gittuf v0.0.0-20260624132056-1124ad3a423e h1:sKUVcCZqAv+lPcBts4Fk1yAAS/BNF5hbJAfZRM/mn9A=
+github.com/pjbgf/gittuf v0.0.0-20260624132056-1124ad3a423e/go.mod h1:voRWcJq7TV/k0W9ZbQWLEVTLsX8w+c56Nmsfh3k+xhM=
 github.com/pjbgf/sha1cd v0.6.0 h1:3WJ8Wz8gvDz29quX1OcEmkAlUg9diU4GxJHqs0/XiwU=
 github.com/pjbgf/sha1cd v0.6.0/go.mod h1:lhpGlyHLpQZoxMv8HcgXvZEhcGs0PG/vsZnEJ7H0iCM=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=

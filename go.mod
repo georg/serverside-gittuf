@@ -15,7 +15,7 @@ require (
 
 // Use the local go-git-storer branch of gittuf, which exposes pkg/rsl behind
 // the RSLStorer interface (see ../gittuf).
-replace github.com/gittuf/gittuf => github.com/pjbgf/gittuf v0.0.0-20260624115542-871b08df83cb
+replace github.com/gittuf/gittuf => github.com/pjbgf/gittuf v0.0.0-20260624132056-1124ad3a423e
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
