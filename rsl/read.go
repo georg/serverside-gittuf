@@ -45,15 +45,19 @@ func EntryNumber(st Storer, h plumbing.Hash) (uint64, error) {
 }
 
 // entryFromCommit builds the typed Entry for a commit by its id + message.
-func entryFromCommit(id plumbing.Hash, c *object.Commit) Entry {
-	// Best-effort: ParseNumber yields 0 for an unnumbered/malformed message, and
-	// callers key off ID/ref, not the number.
-	num, _, _ := ParseNumber(c.Message)
-	if ref, target, ok := ParseReferenceEntry(c.Message); ok {
-		th, _ := plumbing.FromHex(target)
-		return &ReferenceEntry{ID: id, RefName: ref, Target: th, Number: num}
+func entryFromCommit(id plumbing.Hash, c *object.Commit) (Entry, error) {
+	e, err := parseEntry(c.Message)
+	if err != nil {
+		return nil, fmt.Errorf("rsl: parse entry %s: %w", id, err)
 	}
-	return &otherEntry{id: id, number: num}
+	if e.kind == kindReference {
+		th, ok := plumbing.FromHex(e.targetID)
+		if !ok {
+			return nil, fmt.Errorf("rsl: invalid targetID %q in %s", e.targetID, id)
+		}
+		return &ReferenceEntry{ID: id, RefName: e.refName, Target: th, Number: e.number}, nil
+	}
+	return &otherEntry{id: id, number: e.number}, nil
 }
 
 // GetLatestEntry returns the entry at the RSL tip.
@@ -66,7 +70,7 @@ func GetLatestEntry(st Storer) (Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return entryFromCommit(ref.Hash(), c), nil
+	return entryFromCommit(ref.Hash(), c)
 }
 
 // GetParentForEntry walks one step toward the root; ErrEntryNotFound at the root.
@@ -83,7 +87,7 @@ func GetParentForEntry(st Storer, entry Entry) (Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return entryFromCommit(parent, pc), nil
+	return entryFromCommit(parent, pc)
 }
 
 // GetLatestReferenceEntryForRef returns the most recent ReferenceEntry for
