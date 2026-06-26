@@ -12,7 +12,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-git/go-git/v6/x/plugin"
 	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
+	objectverifier "github.com/go-git/x/plugin/objectverifier/ssh"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/georg/serverside-gittuf/gitserver"
@@ -44,9 +46,20 @@ func main() {
 	}
 	sgn, err := objectsigner.FromKey(sshSigner)
 	if err != nil {
-		logger.Error("build signer", "err", err)
+		logger.Error("signer from key", "err", err)
 		os.Exit(1)
 	}
+
+	vfr, err := objectverifier.FromKey(sshSigner.PublicKey())
+	if err != nil {
+		logger.Error("verifier from key", "err", err)
+		os.Exit(1)
+	}
+
+	plugin.Register(plugin.ObjectSigner(), func() plugin.Signer { return sgn })
+	// Verifier could in fact be a "chain" verifier, that navigates through
+	// different public keys.
+	plugin.Register(plugin.ObjectVerifier(), func() plugin.Verifier { return vfr })
 
 	authorized := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub)))
 	logger.Info("RSL signing key loaded",

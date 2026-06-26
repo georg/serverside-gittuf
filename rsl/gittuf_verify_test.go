@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -13,13 +12,13 @@ import (
 
 	git "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gittuf/gittuf/pkg/gitinterface"
 	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
-	"github.com/secure-systems-lab/go-securesystemslib/signerverifier"
+	objectverifier "github.com/go-git/x/plugin/objectverifier/ssh"
 
 	"github.com/georg/serverside-gittuf/rsl"
 	"github.com/georg/serverside-gittuf/txstore"
@@ -52,6 +51,8 @@ func TestGittufCrossVerify_SHA1(t *testing.T) {
 	require.NoError(t, err)
 	sgn, err := objectsigner.FromKey(raw)
 	require.NoError(t, err)
+	vfr, err := objectverifier.FromKey(raw.PublicKey())
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	now := func() time.Time { return time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC) }
@@ -70,13 +71,11 @@ func TestGittufCrossVerify_SHA1(t *testing.T) {
 		[]rsl.RefChange{{RefName: "refs/heads/feature", Delete: true}})
 	require.NoError(t, err)
 
-	gtRepo, err := gitinterface.LoadRepository(dir)
-	require.NoError(t, err)
-	key := sslibKeyFromSigner(raw)
+	emptyTree := "4b825dc642cb6eb9a060e54bf8d69288fbee4904" // TODO: go-git should probably expose this and the same for SHA256.
+	ref := plumbing.ReferenceName(rsl.Ref)
+	require.NoError(t, ref.Validate())
 
-	emptyTree, err := gtRepo.EmptyTree()
-	require.NoError(t, err)
-	tip, err := gtRepo.GetReference(rsl.Ref)
+	tip, err := repo.Reference(ref, true)
 	require.NoError(t, err)
 
 	type seenEntry struct {
@@ -84,27 +83,24 @@ func TestGittufCrossVerify_SHA1(t *testing.T) {
 		number      uint64
 	}
 	var got []seenEntry
-	for cur := tip; !cur.IsZero(); {
-		require.NoError(t, gtRepo.VerifySignature(ctx, cur, key),
-			"gittuf must accept the SSH signature on RSL commit %s", cur)
+	for cur := tip.Hash(); !cur.IsZero(); {
+		commit, err := repo.CommitObject(cur)
+		require.NoError(t, err, "commit not found")
 
-		treeID, err := gtRepo.GetCommitTreeID(cur)
-		require.NoError(t, err)
-		assert.Equal(t, emptyTree.String(), treeID.String(), "RSL entry must be an empty-tree commit")
+		_, err = commit.Verify(context.Background(), object.WithVerifier(vfr))
+		require.NoError(t, err, "the SSH signature on RSL commit %s must verify", cur)
 
-		msg, err := gtRepo.GetCommitMessage(cur)
-		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(msg, rsl.ReferenceEntryHeader), "message must be a ReferenceEntry: %q", msg)
-		ref, target, number := parseCrossVerifyEntry(t, msg)
+		assert.Equal(t, emptyTree, commit.TreeHash.String(), "RSL entry must be an empty-tree commit")
+
+		require.True(t, strings.HasPrefix(commit.Message, rsl.ReferenceEntryHeader), "message must be a ReferenceEntry: %q", commit.Message)
+		ref, target, number := parseCrossVerifyEntry(t, commit.Message)
 		got = append(got, seenEntry{ref: ref, target: target, number: number})
 
-		parents, err := gtRepo.GetCommitParentIDs(cur)
-		require.NoError(t, err)
-		if len(parents) == 0 {
-			break
+		if len(commit.ParentHashes) == 0 {
+			break // root entry (number 1) has no parent
 		}
-		require.Len(t, parents, 1, "the RSL is a linear chain")
-		cur = parents[0]
+		require.Len(t, commit.ParentHashes, 1, "the RSL is a linear chain")
+		cur = commit.ParentHashes[0]
 	}
 
 	// Newest first: 3=delete feature, 2=update main->b, 1=create main->a.
@@ -137,17 +133,4 @@ func parseCrossVerifyEntry(t *testing.T, message string) (ref, target string, nu
 	require.NotEmpty(t, ref)
 	require.NotEmpty(t, target)
 	return ref, target, number
-}
-
-// sslibKeyFromSigner builds the gittuf SSLibKey for an SSH public key, matching
-// gittuf's internal newSSHKey: KeyType "ssh", Scheme = the key's type, and the
-// base64-encoded SSH wire-format public key.
-func sslibKeyFromSigner(s ssh.Signer) *signerverifier.SSLibKey {
-	pub := s.PublicKey()
-	return &signerverifier.SSLibKey{
-		KeyID:   ssh.FingerprintSHA256(pub),
-		KeyType: "ssh",
-		Scheme:  pub.Type(),
-		KeyVal:  signerverifier.KeyVal{Public: base64.StdEncoding.EncodeToString(pub.Marshal())},
-	}
 }

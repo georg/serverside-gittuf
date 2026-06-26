@@ -35,7 +35,6 @@ type Storer interface {
 // so an ssh.Signer can be used wherever a Signer is expected.
 type Signer interface {
 	Sign(ctx context.Context, message io.Reader) ([]byte, error)
-	KeyID() string
 }
 
 // RefChange is one ref mutation to record. Target is the new tip; for a deletion

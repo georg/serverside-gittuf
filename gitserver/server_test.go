@@ -23,11 +23,25 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
+	objectverifier "github.com/go-git/x/plugin/objectverifier/ssh"
 
 	"github.com/georg/serverside-gittuf/gitserver"
 	"github.com/georg/serverside-gittuf/rsl"
 	"github.com/georg/serverside-gittuf/txstore"
 )
+
+// verifyEntrySig checks the RSL entry commit's SSH signature against pub using
+// go-git's object verification (the registered/explicit ObjectVerifier), the
+// in-process analog of gittuf's signature check.
+func verifyEntrySig(t *testing.T, s storage.Storer, id plumbing.Hash, pub ssh.PublicKey) {
+	t.Helper()
+	c, err := object.GetCommit(s, id)
+	require.NoError(t, err)
+	vfr, err := objectverifier.FromKey(pub)
+	require.NoError(t, err)
+	_, err = c.Verify(context.Background(), object.WithVerifier(vfr))
+	require.NoError(t, err)
+}
 
 func testSigner(t *testing.T) (rsl.Signer, ssh.PublicKey) {
 	t.Helper()
@@ -99,7 +113,7 @@ func TestPushRecordsRSLAndIsFetchable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), entry.Number)
 	assert.Equal(t, c1, entry.Target)
-	require.NoError(t, rsl.VerifyEntrySignature(srv, entry.ID, pub))
+	verifyEntrySig(t, srv, entry.ID, pub)
 
 	// The RSL ref is fetchable — the "pull to verify" path.
 	drepo, dst := newClientRepo(t, url)
@@ -158,7 +172,7 @@ func TestPushDeletingRefRecordsZeroOIDEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(2), entry.Number)
 	assert.Equal(t, plumbing.ZeroHash, entry.Target, "a deletion records the zero-OID target")
-	require.NoError(t, rsl.VerifyEntrySignature(srv, entry.ID, pub))
+	verifyEntrySig(t, srv, entry.ID, pub)
 }
 
 func TestCoexistence_ClientRSLDeduped(t *testing.T) {
@@ -238,5 +252,5 @@ func TestCoexistence_MalformedClientRSLRejected(t *testing.T) {
 	assert.Equal(t, uint64(1), entry.Number)
 	assert.Equal(t, c1, entry.Target)
 	assert.NotEqual(t, bad, entry.ID, "server must not adopt the malformed client RSL")
-	require.NoError(t, rsl.VerifyEntrySignature(srv, entry.ID, pub))
+	verifyEntrySig(t, srv, entry.ID, pub)
 }

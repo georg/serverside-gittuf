@@ -24,11 +24,6 @@ const Ref = "refs/gittuf/reference-state-log"
 // PolicyStagingRef is gittuf's policy staging area; it is never recorded.
 const PolicyStagingRef = "refs/gittuf/policy-staging"
 
-// SignatureNamespace is the SSH signature namespace gittuf uses for git object
-// signatures (gittuf internal/signerverifier/ssh.SigNamespace). Both the Signer
-// and VerifyEntrySignature use it.
-const SignatureNamespace = "git"
-
 // Entry-type message headers and field keys, byte-identical to gittuf's
 // internal/rsl constants. Do not change without updating the cross-verify test.
 const (
