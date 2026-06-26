@@ -67,8 +67,8 @@ func referenceEntryMessage(refName, targetID string, number uint64) string {
 // ReferenceEntry but is malformed (a duplicate or out-of-order field, an
 // unexpected line, or a missing field); callers fail closed on it.
 func ParseReferenceEntry(message string) (refName, targetID string, ok bool, err error) {
-	lines := strings.Split(message, "\n")
-	if lines[0] != ReferenceEntryHeader { // Split always yields at least one line.
+	lines := splitEntryLines(message)
+	if lines[0] != ReferenceEntryHeader { // splitEntryLines always yields at least one line.
 		return "", "", false, nil
 	}
 	e, err := parseReferenceLines(lines)
@@ -122,7 +122,7 @@ type parsedEntry struct {
 // out-of-order fields. A message with no recognized header is reported as
 // kindUnknown (not an error), so callers can probe arbitrary commits.
 func parseEntry(message string) (*parsedEntry, error) {
-	lines := strings.Split(message, "\n") // always at least one line
+	lines := splitEntryLines(message)
 	switch lines[0] {
 	case ReferenceEntryHeader:
 		return parseReferenceLines(lines)
@@ -133,6 +133,14 @@ func parseEntry(message string) (*parsedEntry, error) {
 	default:
 		return &parsedEntry{kind: kindUnknown}, nil
 	}
+}
+
+// splitEntryLines splits a commit message into lines, dropping a single
+// trailing newline. gittuf-written entries are read back with the trailing
+// newline git appends to commit messages, while ours carry none; normalizing it
+// here lets the strict line walk accept both without a spurious trailing "".
+func splitEntryLines(message string) []string {
+	return strings.Split(strings.TrimSuffix(message, "\n"), "\n")
 }
 
 // parseReferenceLines walks: header, blank, ref, targetID, [number], EOF.

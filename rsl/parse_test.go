@@ -33,6 +33,12 @@ func TestParseReferenceEntry(t *testing.T) {
 			wantTarget: "aaa",
 			wantOK:     true,
 		},
+		"trailing newline tolerated (gittuf-written)": {
+			message:    ref + "\n\nref: refs/heads/main\ntargetID: aaa\nnumber: 1\n",
+			wantRef:    "refs/heads/main",
+			wantTarget: "aaa",
+			wantOK:     true,
+		},
 		"not a reference entry": {
 			message: rsl.AnnotationEntryHeader + "\n\nentryID: aaa\nskip: false",
 			wantOK:  false,
@@ -112,6 +118,11 @@ func TestParseNumber(t *testing.T) {
 		"reference without number": {
 			message: refH + "\n\nref: refs/heads/main\ntargetID: aaa",
 			wantOK:  false,
+		},
+		"trailing newline tolerated (gittuf-written)": {
+			message: refH + "\n\nref: refs/heads/main\ntargetID: aaa\nnumber: 7\n",
+			wantN:   7,
+			wantOK:  true,
 		},
 		"propagation with number": {
 			message: propH + "\n\nref: refs/heads/main\ntargetID: aaa\nupstreamRepository: u\nupstreamEntryID: bbb\nnumber: 9",
