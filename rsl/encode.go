@@ -1,10 +1,8 @@
 package rsl
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/go-git/go-git/v6/plumbing"
@@ -40,19 +38,16 @@ func buildSignedCommit(ctx context.Context, st Storer, tx storer.Transaction, si
 
 	// Derive the canonical signature-free payload via go-git's codec, sign it,
 	// and place the armored SSHSIG in the gpgsig header.
-	payloadObj := st.NewEncodedObject()
-	if err := c.EncodeWithoutSignature(payloadObj); err != nil {
+	payload, err := c.EncodeWithoutSignature()
+	if err != nil {
 		return plumbing.ZeroHash, fmt.Errorf("rsl: encode payload: %w", err)
 	}
-	payload, err := readObject(payloadObj)
-	if err != nil {
-		return plumbing.ZeroHash, err
-	}
-	sig, err := signer.Sign(ctx, bytes.NewReader(payload))
+
+	sig, err := signer.Sign(ctx, payload)
 	if err != nil {
 		return plumbing.ZeroHash, fmt.Errorf("rsl: sign commit: %w", err)
 	}
-	c.Signature = string(sig)
+	c.Signature = sig
 
 	obj := st.NewEncodedObject()
 	if err := c.Encode(obj); err != nil {
@@ -90,18 +85,4 @@ func loadCommit(st Storer, h plumbing.Hash) (*object.Commit, error) {
 		return nil, fmt.Errorf("rsl: decode commit %s: %w", h, err)
 	}
 	return c, nil
-}
-
-// readObject reads an EncodedObject's full content.
-func readObject(o plumbing.EncodedObject) ([]byte, error) {
-	r, err := o.Reader()
-	if err != nil {
-		return nil, fmt.Errorf("rsl: open object reader: %w", err)
-	}
-	defer func() { _ = r.Close() }()
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("rsl: read object bytes: %w", err)
-	}
-	return b, nil
 }

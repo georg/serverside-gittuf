@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-git/go-git/v6/plumbing/protocol"
 	"github.com/go-git/go-git/v6/plumbing/transport"
 )
 
@@ -32,7 +33,7 @@ func (s *Server) handleInfoRefs(w http.ResponseWriter, r *http.Request, repo str
 
 	// AdvertiseRefs with smart=true emits the full smart-HTTP advertisement,
 	// including the "# service=<svc>" banner pkt-line and trailing flush.
-	if err := transport.AdvertiseRefs(r.Context(), st, w, service, true); err != nil {
+	if err := transport.AdvertiseRefs(r.Context(), st, w, service, true, protocol.V0); err != nil {
 		s.logger.Error("advertise refs failed", "repo", repo, "service", service, "err", err)
 	}
 }

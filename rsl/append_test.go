@@ -17,6 +17,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	objectsigner "github.com/go-git/x/plugin/objectsigner/ssh"
+	objectverifier "github.com/go-git/x/plugin/objectverifier/ssh"
 
 	"github.com/georg/serverside-gittuf/rsl"
 )
@@ -67,9 +68,17 @@ func TestAppend_NumberingChainingMessageAndSignature(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, e3[0].ID, tip.GetID())
 
-	// Each entry's signature verifies against the signer's public key.
+	// Each entry's signature verifies against the signer's public key, via
+	// go-git's in-process object verification.
+	vfr, err := objectverifier.FromKey(pub)
+	require.NoError(t, err)
+
 	for _, e := range []*rsl.ReferenceEntry{e1[0], e2[0], e3[0]} {
-		require.NoError(t, rsl.VerifyEntrySignature(st, e.ID, pub), "entry %d", e.Number)
+		c, err := object.GetCommit(st, e.ID)
+		require.NoError(t, err, "entry %d", e.Number)
+
+		_, err = c.Verify(context.Background(), object.WithVerifier(vfr))
+		require.NoError(t, err, "entry %d", e.Number)
 	}
 
 	// Exact on-wire message bytes for entry 1 (create main -> A).

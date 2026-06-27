@@ -44,7 +44,11 @@ func dropClientLogged(st storage.Storer, changes []rsl.RefChange, boundary plumb
 		if err != nil {
 			return nil, fmt.Errorf("walk rsl commit %s: %w", cur, err)
 		}
-		if refName, target, ok := rsl.ParseReferenceEntry(c.Message); ok {
+		refName, target, ok, err := rsl.ParseReferenceEntry(c.Message)
+		if err != nil {
+			return nil, fmt.Errorf("parse rsl commit %s (fail-closed): %w", cur, err)
+		}
+		if ok {
 			seen[rsl.DedupKey(refName, target)] = struct{}{}
 		}
 		if len(c.ParentHashes) == 0 {
